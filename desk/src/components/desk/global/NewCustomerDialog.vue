@@ -1,110 +1,98 @@
 <template>
-	<div>
-		<Dialog
-			:options="{ title: 'Add New Customer', size: 'sm' }"
-			v-model="open"
-		>
-			<template #body-content>
-				<div class="space-y-4">
-					<div class="space-y-1">
-						<Input
-							label="Customer Name"
-							type="text"
-							placeholder="Tesla Inc."
-							v-model="customer"
-						/>
-					</div>
-					<div class="space-y-1">
-						<Input
-							label="Domain"
-							type="text"
-							placeholder="eg: tesla.com, mycompany.com"
-							v-model="domain"
-						/>
-					</div>
-					<div class="flex float-right space-x-2">
-						<Button
-							appearance="primary"
-							@click="
-								() => {
-									addCustomer()
-									close()
-									this.$router.go()
-								}
-							"
-							class="mr-auto"
-							>Add</Button
-						>
-					</div>
-				</div>
-			</template>
-		</Dialog>
-	</div>
+  <div>
+    <Dialog
+      v-model="model"
+      :options="{ title: 'Add New Customer', size: 'sm' }"
+    >
+      <template #body-content>
+        <div class="space-y-4">
+          <div class="space-y-1">
+            <Input
+              v-model="state.customer"
+              label="Customer Name"
+              type="text"
+              placeholder="Tesla Inc."
+            />
+          </div>
+          <div class="space-y-1">
+            <Input
+              v-model="state.domain"
+              label="Domain"
+              type="text"
+              placeholder="eg: tesla.com, mycompany.com"
+            />
+          </div>
+          <div class="float-right flex space-x-2">
+            <Button
+              label="Add"
+              theme="gray"
+              variant="solid"
+              @click.prevent="addCustomer"
+            />
+          </div>
+        </div>
+      </template>
+    </Dialog>
+  </div>
 </template>
 
-<script>
-import { Input, Dialog, ErrorMessage } from "frappe-ui"
-import { computed, ref, inject } from "vue"
-export default {
-	name: "newCustomerDialog",
-	props: {
-		modelValue: {
-			type: Boolean,
-			required: true,
-		},
-	},
-	setup(props, { emit }) {
-		let open = computed({
-			get: () => props.modelValue,
-			set: (val) => {
-				emit("update:modelValue", val)
-				if (!val) {
-					emit("close")
-				}
-			},
-		})
-		return {
-			open,
-		}
-	},
-	components: {
-		Dialog,
-		Input,
-	},
-	data() {
-		return {
-			customer: "",
-			domain: "",
-		}
-	},
-	methods: {
-		addCustomer() {
-			const inputParams = {
-				customer_name: this.customer,
-				domain: this.domain,
-			}
-			this.$resources.newCustomer.submit({
-				doc: {
-					doctype: "FD Customer",
-					...inputParams,
-				},
-			})
-		},
-		close() {
-			this.customer = ""
-			this.domain = ""
-			this.$emit("close")
-		},
-	},
-	resources: {
-		newCustomer() {
-			return {
-				method: "frappe.client.insert",
-				onSuccess: (doc) => {
-					this.$router.push(`/frappedesk/customers`)
-				},
-			}
-		},
-	},
+<script setup lang="ts">
+import { reactive } from "vue";
+import { Input, Dialog, createResource } from "frappe-ui";
+import { createToast } from "@/utils";
+
+const emit = defineEmits(["customerCreated"]);
+const model = defineModel<boolean>();
+
+const state = reactive({
+  customer: "",
+  domain: "",
+});
+
+const customerResource = createResource({
+  url: "frappe.client.insert",
+  method: "POST",
+  data: {
+    doc: {
+      doctype: "HD Customer",
+      customer_name: state.customer,
+      domain: state.domain,
+    },
+  },
+  onSuccess: () => {
+    state.customer = "";
+    state.domain = "";
+    createToast({
+      title: "Customer Created Successfully ",
+      icon: "check",
+      iconClasses: "text-green-600",
+    });
+    emit("customerCreated");
+  },
+  onError: (err) => {
+    createToast({
+      title: err.messages[0],
+      icon: "x",
+      iconClasses: "text-red-600",
+    });
+  },
+});
+
+function addCustomer() {
+  if (!state.customer) {
+    createToast({
+      title: "Customer Name is required",
+      icon: "x",
+      iconClasses: "text-red-600",
+    });
+    return;
+  }
+  customerResource.submit({
+    doc: {
+      doctype: "HD Customer",
+      customer_name: state.customer,
+      domain: state.domain,
+    },
+  });
 }
 </script>

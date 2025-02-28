@@ -1,42 +1,71 @@
-import { createApp } from "vue"
+import { createApp } from "vue";
+import { createPinia } from "pinia";
 import {
-	FrappeUI,
-	Button,
-	Dialog,
-	Input,
-	onOutsideClickDirective,
-	Tooltip,
-	Badge,
-} from "frappe-ui"
-import router from "./router"
-import App from "./App.vue"
-import "./index.css"
-import { dayjs } from "@/utils"
-import { createToast, clearToasts } from "@/utils/toasts"
-import { event } from "@/utils/event"
-import { socketio_port } from "../../../../sites/common_site_config.json"
+  frappeRequest,
+  resourcesPlugin,
+  setConfig,
+  Badge,
+  Button,
+  Dialog,
+  ErrorMessage,
+  FeatherIcon,
+  FormControl,
+  Input,
+  Tooltip,
+  TextInput,
+} from "frappe-ui";
+import App from "./App.vue";
+import "./index.css";
+import { router } from "./router";
+import { socket } from "./socket";
+import { createToast } from "@/utils";
+import { posthogPlugin } from "./telemetry";
 
-let app = createApp(App)
+const globalComponents = {
+  Badge,
+  Button,
+  Dialog,
+  ErrorMessage,
+  FeatherIcon,
+  FormControl,
+  Input,
+  Tooltip,
+  TextInput,
+};
 
-app.directive("on-outside-click", onOutsideClickDirective)
-app.use(router)
-app.use(FrappeUI, {
-	socketio: {
-		port: socketio_port,
-	},
-})
+setConfig("resourceFetcher", frappeRequest);
+setConfig("fallbackErrorHandler", (error) => {
+  createToast({
+    title: error.exc_type || "Error",
+    text: (error.messages || []).join(", "),
+    icon: "alert-triangle",
+    iconClasses: "text-red-500",
+  });
+});
 
-app.component("Button", Button)
-app.component("Dialog", Dialog)
-app.component("Input", Input)
-app.component("Tooltip", Tooltip)
-app.component("Badge", Badge)
+const pinia = createPinia();
+const app = createApp(App);
 
-app.config.unwrapInjectedRef = true
+app.use(resourcesPlugin);
+app.use(pinia);
+app.use(router);
+app.use(posthogPlugin);
+for (const c in globalComponents) {
+  app.component(c, globalComponents[c]);
+}
 
-app.config.globalProperties.$dayjs = dayjs
-app.config.globalProperties.$toast = createToast
-app.config.globalProperties.$clearToasts = clearToasts
-app.config.globalProperties.$event = event
+app.config.globalProperties.$socket = socket;
+app.config.globalProperties.$toast = createToast;
 
-app.mount("#app")
+if (import.meta.env.DEV) {
+  frappeRequest({
+    url: "/api/method/helpdesk.www.helpdesk.index.get_context_for_dev",
+  }).then((values) => {
+    for (let key in values) {
+      window[key] = values[key];
+    }
+    app.mount("#app");
+  });
+} else {
+  app.mount("#app");
+}
